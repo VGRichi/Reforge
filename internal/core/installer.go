@@ -20,10 +20,20 @@ import (
 func (e *Engine) updateInstaller(app *applist.App, release *github.Release, program *system.Program, r *Result) error {
 	r.Installed = program.Version
 	current, latest := version.Parse(program.Version), version.Parse(release.Tag)
+	remembered := app.InstalledAs != "" && sameVersion(program.Version, app.InstalledAs)
+	if remembered {
+		current = version.Parse(app.InstalledVersion)
+	}
 	switch {
 	case current == nil || latest == nil:
 		r.set(Skipped, "Can't compare versions")
 		return nil
+	case version.Compare(current, latest) > 0 && !remembered:
+		// Once installed by Reforge, its tag is remembered and compared from then on
+		if e.DryRun || !e.yes(fmt.Sprintf("Windows shows %s %s, newer than its latest release %s: it probably numbers its versions differently from its tags. Install %s?", app.Name, program.Version, release.Tag, release.Tag)) {
+			r.set(Skipped, "Installed version looks newer than the latest release; the app probably numbers its versions differently. Run reforge update in a terminal to choose")
+			return nil
+		}
 	case version.Compare(current, latest) >= 0:
 		r.Status = UpToDate
 		return nil
@@ -36,9 +46,23 @@ func (e *Engine) updateInstaller(app *applist.App, release *github.Release, prog
 	case !program.PerUser && !e.System.IsAdmin():
 		r.set(NeedsAdmin, "Installed for all users; run as administrator")
 	case e.approved(app, asset, r):
-		return e.runInstaller(app, asset, r, Updated, !program.PerUser)
+		if err := e.runInstaller(app, asset, r, Updated, !program.PerUser); err != nil || r.Status != Updated {
+			return err
+		}
+		after, err := e.System.Programs()
+		if err != nil {
+			return err
+		}
+		remember(app, release, FindProgram(after, app.Name))
 	}
 	return nil
+}
+
+// remember records the release Reforge just installed and the version Windows shows for it.
+func remember(app *applist.App, release *github.Release, program *system.Program) {
+	if program != nil {
+		app.InstalledVersion, app.InstalledAs = release.Tag, program.Version
+	}
 }
 
 // Install installs an app for the first time: the latest release's installer (the .msi when there's a
@@ -130,7 +154,10 @@ func (e *Engine) install(app *applist.App, force bool, r *Result) error {
 			app.Name = BaseName(found.Name)
 		}
 		r.Installed = found.Version
+	} else if app.Name != "" { // a reinstall of the same version adds nothing new
+		found = FindProgram(after, app.Name)
 	}
+	remember(app, release, found)
 	return nil
 }
 

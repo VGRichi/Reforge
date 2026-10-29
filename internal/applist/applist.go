@@ -31,6 +31,10 @@ type App struct {
 	HadDigest        bool              `json:"HadDigest,omitempty"`
 	Publisher        string            `json:"Publisher,omitempty"` // who signed its installers, once one was signed
 	InstalledVersion string            `json:"InstalledVersion,omitempty"`
+	// InstalledAs is the version Windows showed right after Reforge installed an installer app's
+	// InstalledVersion (its release tag). While Windows still shows it, the tag is compared instead,
+	// for apps whose installers number versions differently from their tags.
+	InstalledAs string `json:"InstalledAs,omitempty"`
 }
 
 // IsArchive reports whether the app is an archive tool whose files are copied into folders (--dest).
