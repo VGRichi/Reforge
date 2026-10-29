@@ -36,7 +36,7 @@ func (e *Engine) updateInstaller(app *applist.App, release *github.Release, prog
 	case !program.PerUser && !e.System.IsAdmin():
 		r.set(NeedsAdmin, "Installed for all users; run as administrator")
 	case e.approved(app, asset, r):
-		return e.runInstaller(app, asset, r, Updated)
+		return e.runInstaller(app, asset, r, Updated, !program.PerUser)
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func (e *Engine) install(app *applist.App, force bool, r *Result) error {
 	for _, p := range before {
 		seen[p.Key+"|"+p.Version] = true
 	}
-	if err := e.runInstaller(app, asset, r, Installed); err != nil {
+	if err := e.runInstaller(app, asset, r, Installed, false); err != nil {
 		return err
 	}
 	if r.Status != Installed {
@@ -135,7 +135,9 @@ func (e *Engine) install(app *applist.App, force bool, r *Result) error {
 }
 
 // runInstaller downloads the installer, checks its signature, runs it silently and records the outcome.
-func (e *Engine) runInstaller(app *applist.App, asset *github.Asset, r *Result, done Status) error {
+// allUsers updates an app installed for everyone: an .msi then needs ALLUSERS=1, or it tries a
+// per-user install, refuses to change who the app is installed for, and fails with 1603.
+func (e *Engine) runInstaller(app *applist.App, asset *github.Asset, r *Result, done Status, allUsers bool) error {
 	file, cleanup, err := e.fetch(asset)
 	if err != nil {
 		return err
@@ -152,7 +154,11 @@ func (e *Engine) runInstaller(app *applist.App, asset *github.Asset, r *Result, 
 	e.progress("Installing %s", asset.Name)
 	var code int
 	if strings.HasSuffix(strings.ToLower(file), ".msi") {
-		code, err = e.System.RunInstaller("msiexec.exe", fmt.Sprintf(`/i "%s" /qn /norestart`, file))
+		args := fmt.Sprintf(`/i "%s" /qn /norestart`, file)
+		if allUsers {
+			args += " ALLUSERS=1"
+		}
+		code, err = e.System.RunInstaller("msiexec.exe", args)
 	} else {
 		args := app.SilentArgs
 		if args == "" {
