@@ -86,6 +86,20 @@ func TestUpdatePicksTheMsiForAnMsiInstall(t *testing.T) {
 	}
 }
 
+func TestUpdateAllUsersMsiPassesAllUsers(t *testing.T) {
+	te, app := installerCase(t)
+	te.sys.programs[0].MSI = true
+	te.sys.programs[0].PerUser = false
+	te.sys.admin = true
+	te.gh.release.Assets = append(te.gh.release.Assets, asset("PhotoCraft-1.1.0-x64.msi", te.gh.payload))
+	if r := te.Update(app); r.Status != Updated {
+		t.Fatalf("got %+v", r)
+	}
+	if len(te.sys.runs) != 1 || !strings.HasSuffix(te.sys.runs[0].args, `PhotoCraft-1.1.0-x64.msi" /qn /norestart ALLUSERS=1`) {
+		t.Fatalf("runs: %v", te.sys.runs)
+	}
+}
+
 func TestUpdateWithoutChecksum(t *testing.T) {
 	tests := []struct {
 		answer  int
