@@ -29,7 +29,7 @@
 
 Installer apps are Windows-only for now; game mods and tools work on Windows, macOS and Linux.
 <p align="center">
-  <img src="assets/screenshots/reforge-list.png" alt="reforge list: two installed apps and two downloaded mods (DXVK, OptiScaler), with their installed and latest versions" width="760">
+  <img src="assets/screenshots/reforge-list.png" alt="reforge list: five installed apps and two downloaded mods (DXVK, OptiScaler), all up to date, with their installed and latest versions" width="760">
 </p>
 
 ## Install
