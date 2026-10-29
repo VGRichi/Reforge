@@ -100,6 +100,63 @@ func TestUpdateAllUsersMsiPassesAllUsers(t *testing.T) {
 	}
 }
 
+// An app whose installer numbers versions differently from its tags (Windows 1.1.33 for tag 0.1.33-alpha)
+func numberedDifferentlyCase(t *testing.T) (*testEngine, *applist.App) {
+	te, app := installerCase(t)
+	te.sys.programs[0].Version = "1.1.33"
+	te.gh.release = release("0.1.34-alpha", asset("PhotoCraft-0.1.34-alpha-x64-setup.exe", te.gh.payload))
+	return te, app
+}
+
+func TestUpdateFlagsAnInstalledVersionNewerThanTheRelease(t *testing.T) {
+	te, app := numberedDifferentlyCase(t)
+	te.ask.answers = []int{1}
+	if r := te.Update(app); r.Status != Skipped || !strings.Contains(r.Note, "numbers its versions differently") || len(te.sys.runs) != 0 {
+		t.Fatalf("got %+v", r)
+	}
+	te.DryRun = true // a check never asks
+	if r := te.Update(app); r.Status != Skipped {
+		t.Fatalf("dry run: got %+v", r)
+	}
+}
+
+func TestUpdateInstallsTheReleaseWhenToldItIsNewer(t *testing.T) {
+	te, app := numberedDifferentlyCase(t)
+	te.ask.answers = []int{0}
+	te.sys.after = []system.Program{program("PhotoCraft", "1.1.34", true, false)}
+	if r := te.Update(app); r.Status != Updated {
+		t.Fatalf("got %+v", r)
+	}
+	if app.InstalledVersion != "0.1.34-alpha" || app.InstalledAs != "1.1.34" {
+		t.Errorf("remembered %q as %q", app.InstalledVersion, app.InstalledAs)
+	}
+}
+
+func TestUpdateComparesTheRememberedTag(t *testing.T) {
+	te, app := numberedDifferentlyCase(t)
+	app.InstalledVersion, app.InstalledAs = "0.1.33-alpha", "1.1.33"
+	te.sys.after = []system.Program{program("PhotoCraft", "1.1.34", true, false)}
+	if r := te.Update(app); r.Status != Updated || r.Installed != "1.1.33" {
+		t.Fatalf("got %+v", r)
+	}
+	if app.InstalledVersion != "0.1.34-alpha" || app.InstalledAs != "1.1.34" {
+		t.Errorf("remembered %q as %q", app.InstalledVersion, app.InstalledAs)
+	}
+	te.loaded = false // the next run reads Installed apps again
+	if r := te.Update(app); r.Status != UpToDate {
+		t.Fatalf("next run: got %+v", r)
+	}
+}
+
+func TestUpdateIgnoresTheRememberedTagOnceWindowsShowsAnother(t *testing.T) {
+	te, app := installerCase(t)
+	app.InstalledVersion, app.InstalledAs = "v0.9.0", "0.9.0" // since updated outside Reforge, to 1.1.0
+	te.sys.programs[0].Version = "1.1.0"
+	if r := te.Update(app); r.Status != UpToDate || len(te.sys.runs) != 0 {
+		t.Fatalf("got %+v", r)
+	}
+}
+
 func TestUpdateWithoutChecksum(t *testing.T) {
 	tests := []struct {
 		answer  int

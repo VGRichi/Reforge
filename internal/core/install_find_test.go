@@ -21,6 +21,24 @@ func installCase(t *testing.T) (*testEngine, *applist.App) {
 	return te, &applist.App{Repository: "storytold/photocraft"}
 }
 
+func TestInstallRemembersTheTagAndWindowsVersion(t *testing.T) {
+	te, app := installCase(t)
+	te.Install(app, true)
+	if app.InstalledVersion != "v1.1.0" || app.InstalledAs != "1.1.0" {
+		t.Fatalf("remembered %q as %q", app.InstalledVersion, app.InstalledAs)
+	}
+}
+
+func TestReinstallOfTheSameVersionStillRemembers(t *testing.T) {
+	te, app := installCase(t)
+	app.Name = "PhotoCraft"
+	te.sys.programs = te.sys.after // already installed, so nothing new appears
+	te.Install(app, true)
+	if app.InstalledVersion != "v1.1.0" || app.InstalledAs != "1.1.0" {
+		t.Fatalf("remembered %q as %q", app.InstalledVersion, app.InstalledAs)
+	}
+}
+
 func TestInstallAsksThenInstallsTheMsiAndLearnsTheName(t *testing.T) {
 	te, app := installCase(t)
 	te.ask.answers = []int{0}
